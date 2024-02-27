@@ -1,8 +1,8 @@
 
 [![Author](https://img.shields.io/badge/author-zarnoevic-green)](https://github.com/zarnoevic)
 [![License](https://img.shields.io/github/license/zarnoevic/pure-lottery)](https://github.com/zarnoevic/pure-lottery/blob/main/LICENSE.md)
-[![Build](https://github.com/github/docs/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/zarnoevic/pure-lottery/actions)
-[![Tests](https://github.com/github/docs/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/zarnoevic/pure-lottery/actions)
+[![Build](https://img.shields.io/github/actions/workflow/status/zarnoevic/pure-lottery/build.yml?branch=main&event=push&label=build)](https://github.com/zarnoevic/pure-lottery/actions/workflows/build.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/zarnoevic/pure-lottery/test.yml?branch=main&event=push&label=tests)](https://github.com/zarnoevic/pure-lottery/actions/workflows/test.yml)
 
 ## Pure Decentralized Lottery
 
