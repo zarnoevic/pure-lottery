@@ -1,4 +1,4 @@
-name: test
+name: build
 
 on:
   push:
@@ -27,7 +27,8 @@ jobs:
         with:
           version: nightly
 
-      - name: Run Forge tests
+      - name: Run Forge build
         run: |
-          forge test -vvvvv
-        id: test
+          forge --version
+          forge build --sizes
+        id: build
