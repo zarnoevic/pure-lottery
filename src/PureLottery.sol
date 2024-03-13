@@ -79,24 +79,37 @@ contract PureLottery {
     }
 
     function recommitValueAndRestartResolution(uint256 value) external payable {
-        require(msg.value == COMMITTER_STAKE, WrongStakeAmount());
-        require(value != 0, WrongCommitValue());
-        require(resolutionBlockNumbers[lotteryId] != 0, ValueNotCommitted());
-        require(
-            block.number > resolutionBlockNumbers[lotteryId] + 256
-            || block.number >= resolutionBlockNumbers[lotteryId] + COMMITTER_BLOCKS_WINDOW,
-            ValueAlreadyCommitted()
-        );
+        if (msg.value != COMMITTER_STAKE) {
+            revert WrongStakeAmount();
+        } else if (value == 0) {
+            revert WrongCommitValue();
+        } else if (resolutionBlockNumbers[lotteryId] == 0) {
+            revert ValueNotCommitted();
+        } else if (!inResolution) {
+            revert LotteryActive();
+        } else if (
+            !(
+                block.number > resolutionBlockNumbers[lotteryId] + 256
+                    || block.number >= resolutionBlockNumbers[lotteryId] + COMMITTER_BLOCKS_WINDOW
+            )
+        ) {
+            revert ValueAlreadyCommitted();
+        }
         committedValues[lotteryId] = value;
         resolutionBlockNumbers[lotteryId] = block.number + 1;
     }
 
+    error WaitingForResolutionBlockHash();
+    error InvalidPreimageRevealed();
+
     function revealValueAndResolveLottery(uint256 preimage) external {
-        require(
-            inResolution && block.number > resolutionBlockNumbers[lotteryId]
-            && keccak256(abi.encodePacked(preimage)) == committedValues[lotteryId],
-            CannotResolveLottery()
-        );
+        if (!inResolution) {
+            revert LotteryNotActive();
+        } else if (block.number <= resolutionBlockNumbers[lotteryId]) {
+            revert WaitingForResolutionBlockHash();
+        } else if (keccak256(abi.encodePacked(preimage)) != committedValues[lotteryId]) {
+            revert InvalidPreimageRevealed();
+        }
 
         uint256 monteCarloDot = uint256(
             keccak256(abi.encodePacked(preimage, blockhash(resolutionBlockNumbers[lotteryId])))
