@@ -33,7 +33,7 @@ contract PureLottery {
     event PaymentAccepted(address indexed participant, uint256 amount);
     event ResolutionStarted(uint32 indexed lotteryId, uint256 startBlockNumber);
     event ResolvedLottery(uint32 indexed lotteryId);
-    event LotteryStarted(uint32 indexed lotteryId);
+    event LotteryStarted(uint32 indexed lotteryId, uint256 startTime);
 
     constructor() {
         startTimes[0] = block.timestamp;
@@ -55,7 +55,7 @@ contract PureLottery {
             participantAddressToId[msg.sender] = participantsCount[lotteryId];
             ++participantsCount[lotteryId];
         }
-        participantAmounts[msg.sender] += msg.value;
+        participantAmounts[lotteryId][msg.sender] += msg.value;
         emit PaymentAccepted(msg.sender, msg.value);
     }
 
@@ -68,11 +68,17 @@ contract PureLottery {
     }
 
     function commitValueAndStartResolution(uint256 value) external payable {
-        require(msg.value == COMMITTER_STAKE, WrongStakeAmount());
-        require(committedValues[lotteryId] == 0, ValueAlreadyCommitted());
-        require(value != 0, WrongCommitValue());
-        require(!inResolution, LotteryActive());
-        require(block.timestamp >= startTimes[lotteryId] + DURATION, WrongState());
+        if (msg.value != COMMITTER_STAKE) {
+            revert WrongStakeAmount();
+        } else if (committedValues[lotteryId] != 0) {
+            revert ValueAlreadyCommitted();
+        } else if (value == 0) {
+            revert WrongCommitValue();
+        } else if (inResolution) {
+            revert LotteryActive();
+        } else if (block.timestamp < startTimes[lotteryId] + DURATION) {
+            revert WrongState();
+        }
         inResolution = true;
         resolutionBlockNumbers[lotteryId] = block.number + 1;
         committedValues[lotteryId] = value;
@@ -99,6 +105,8 @@ contract PureLottery {
         resolutionBlockNumbers[lotteryId] = block.number + 1;
     }
 
+    // Revealing and resolving the lottery
+
     error WaitingForResolutionBlockHash();
     error InvalidPreimageRevealed();
 
@@ -107,7 +115,7 @@ contract PureLottery {
             revert LotteryNotActive();
         } else if (block.number <= resolutionBlockNumbers[lotteryId]) {
             revert WaitingForResolutionBlockHash();
-        } else if (keccak256(abi.encodePacked(preimage)) != committedValues[lotteryId]) {
+        } else if (keccak256(abi.encodePacked(preimage)) != bytes32(committedValues[lotteryId])) {
             revert InvalidPreimageRevealed();
         }
 
@@ -115,14 +123,12 @@ contract PureLottery {
             keccak256(abi.encodePacked(preimage, blockhash(resolutionBlockNumbers[lotteryId])))
         ) % poolBalances[lotteryId];
 
-        mapping(address => uint256) memory _participantAmounts = participantAmounts[lotteryId];
-
         uint256 monteCarloLine = 0;
-        for (uint32 i = 0; i < _participantAmounts.length; ++i) {
+        for (uint32 i = 0; i < participantsCount[lotteryId]; ++i) {
             if (monteCarloDot <= monteCarloLine) {
-                winnerAmounts[i][msg.sender] = _participantAmounts[i];
-                poolBalances[lotteryId] -= _participantAmounts[i];
-                _participantAmounts[i] = 0;
+//                winnerAmounts[i][msg.sender] = participantAmounts[lotteryId][i];
+//                poolBalances[lotteryId] -= participantAmounts[lotteryId][i];
+//                participantAmounts[lotteryId][i] = 0;
             }
         }
 
@@ -132,14 +138,9 @@ contract PureLottery {
         ++lotteryId;
         startTimes[lotteryId] = block.timestamp;
         payable(msg.sender).transfer(REWARD_MULTIPLIER * COMMITTER_STAKE);
-        emit LotteryStarted(block.timestamp);
+        emit LotteryStarted(lotteryId, block.timestamp);
     }
 
     function withdrawReward() external {}
 
-    function rewardCaller() private {
-        // Send a multiple of the transaction gas cost to the lottery resolution caller
-        // as a reward for calling a function of common interest
-        payable(msg.sender).transfer(REWARD_MULTIPLIER * tx.gasprice * tx.gaslimit);
-    }
 }
