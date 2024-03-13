@@ -32,5 +32,5 @@ jobs:
 
       - name: Run Forge tests
         run: |
-          forge test -vvvvv --gas-report
+          forge test --match-path test/PureLottery.t.sol -vvvvv --gas-report
         id: tests

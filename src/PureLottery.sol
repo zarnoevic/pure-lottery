@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-    error WrongStakeAmount();
-    error LotteryNotActive();
-    error LotteryActive();
-    error CannotResolveLottery();
-    error WrongState();
-    error ValueAlreadyCommitted();
-    error WrongCommitValue();
-    error ValueNotCommitted();
+error WrongStakeAmount();
+error LotteryNotActive();
+error LotteryActive();
+error CannotResolveLottery();
+error WrongState();
+error ValueAlreadyCommitted();
+error WrongCommitValue();
+error ValueNotCommitted();
 
-contract TrustlessLottery {
+contract PureLottery {
     uint256 public constant DURATION = 7 * 24 hours;
     uint256 public constant MIN_TOTAL_POOL = 1 ether;
     uint256 public constant COMMITTER_STAKE = 0.1 ether;
@@ -29,7 +29,6 @@ contract TrustlessLottery {
     mapping(uint32 => uint256) public committedValues;
     mapping(uint32 => uint256) public resolutionBlockNumbers;
 
-
     event PaymentAccepted(address indexed participant, uint256 amount);
     event ResolutionStarted(uint32 indexed lotteryId, uint256 startBlockNumber);
     event ResolvedLottery(uint32 indexed lotteryId);
@@ -39,7 +38,7 @@ contract TrustlessLottery {
         startTimes[0] = block.timestamp;
     }
 
-    receive() external payable {
+    function enterLottery() external payable {
         require(!inResolution, LotteryNotActive());
         if (participantAddressToId[msg.sender] == 0) {
             participantAddressToId[msg.sender] = participantsCount[lotteryId];
@@ -49,50 +48,56 @@ contract TrustlessLottery {
         emit PaymentAccepted(msg.sender, msg.value);
     }
 
-    function getParticipantBalance(address calldata participant) public view returns (uint256){
+    receive() external payable {
+        enterLottery();
+    }
+
+    fallback() external payable {
+        enterLottery();
+    }
+
+    function getParticipantBalance(address calldata participant) external view returns (uint256) {
         return participantAmounts[lotteryId][participant];
     }
 
-    function getPoolBalance() public view returns (uint256) {
+    function getPoolBalance() external view returns (uint256) {
         return address(this).balance;
     }
 
-    function commitValueAndStartResolution(uint256 calldata value) public {
+    function commitValueAndStartResolution(uint256 calldata value) external payable {
         require(message.value == COMMITTER_STAKE, WrongStakeAmount());
         require(committedValues[lotteryId] == 0, ValueAlreadyCommitted());
         require(value != 0, WrongCommitValue());
         require(!inResolution, LotteryActive());
-        require(
-            block.timestamp >= startTimes[lotteryId] + DURATION,
-            WrongState()
-        );
+        require(block.timestamp >= startTimes[lotteryId] + DURATION, WrongState());
         inResolution = true;
         resolutionBlockNumbers[lotteryId] = block.number + 1;
         committedValues[lotteryId] = value;
     }
 
-    function recommitValueAndRestartResolution(uint256 calldata value) public {
+    function recommitValueAndRestartResolution(uint256 calldata value) external payable {
         require(message.value == COMMITTER_STAKE, WrongStakeAmount());
         require(value != 0, WrongCommitValue());
         require(resolutionBlockNumbers[lotteryId] != 0, ValueNotCommitted());
         require(
             block.number > resolutionStartBlockNumber + 256
-            || block.number >= resolutionBlockNumbers[lotteryId] + COMMITTER_BLOCKS_WINDOW,
+                || block.number >= resolutionBlockNumbers[lotteryId] + COMMITTER_BLOCKS_WINDOW,
             ValueAlreadyCommitted()
         );
         committedValues[lotteryId] = value;
         resolutionBlockNumbers[lotteryId] = block.number + 1;
     }
 
-    function revealValueAndResolveLottery(uint256 calldata preimage) public {
+    function revealValueAndResolveLottery(uint256 calldata preimage) external {
         require(
-            inResolution
-            && block.number > resolutionBlockNumbers[lotteryId]
-            && keccak256(abi.encodePacked(preimage)) == committedValues[lotteryId],
+            inResolution && block.number > resolutionBlockNumbers[lotteryId]
+                && keccak256(abi.encodePacked(preimage)) == committedValues[lotteryId],
             CannotResolveLottery()
         );
 
-        uint256 monteCarloDot = uint256(keccak256(abi.encodePacked(preimage, blockhash(resolutionBlockNumbers[lotteryId])))) % poolBalance;
+        uint256 monteCarloDot = uint256(
+            keccak256(abi.encodePacked(preimage, blockhash(resolutionBlockNumbers[lotteryId])))
+        ) % poolBalances[lotteryId];
 
         mapping(address => uint256) memory participantAmounts = participantAmounts[lotteryId];
 
@@ -105,7 +110,6 @@ contract TrustlessLottery {
             }
         }
 
-
         emit ResolvedLottery(lotteryId);
 
         inResolution = false;
@@ -115,10 +119,11 @@ contract TrustlessLottery {
         emit LotteryStarted(block.timestamp);
     }
 
+    function withdrawReward() external {}
+
     function rewardCaller() private {
         // Send a multiple of the transaction gas cost to the lottery resolution caller
         // as a reward for calling a function of common interest
         payable(msg.sender).transfer(REWARD_MULTIPLIER * tx.gasprice * tx.gaslimit);
     }
-
 }
