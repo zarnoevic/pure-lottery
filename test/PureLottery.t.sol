@@ -4,27 +4,32 @@ pragma solidity 0.8.24;
 import {Test, console2} from "forge-std/Test.sol";
 import {PureLottery} from "../src/PureLottery.sol";
 
-contract CounterTest is Test {
-    PureLottery public pureLottery;
+contract PureLotteryTest is Test {
+    bytes private WrongLotteryEntry = abi.encodeWithSignature("WrongLotteryEntry()");
+//
+//    function test_enterLottery() public {
+//        PureLottery pureLottery = new PureLottery();
+//        pureLottery.enterLottery{value: 1 ether}();
+//        assertEq(pureLottery.getParticipantBalance(msg.sender), 1 ether);
+//    }
 
-    function setUp() public {
-        pureLottery = new PureLottery();
+    function test_receiveReverts() public {
+        PureLottery pureLottery = new PureLottery();
+
+        vm.expectRevert(WrongLotteryEntry);
+
+        payable(pureLottery).call{value: 1 ether}("");
+
+        assertEq(pureLottery.getParticipantBalance(msg.sender), 0);
     }
 
-    function test_enterLottery() public {
-        pureLottery.enterLottery{value: 1 ether}();
-        assertEq(pureLottery.getParticipantBalance(msg.sender), 1 ether);
-    }
+    function test_fallbackReverts() public {
+        PureLottery pureLottery = new PureLottery();
 
-    function test_receive() public {
-        // Attempt to send 1 ether to the pureLottery contract
-        (bool success, ) = payable(pureLottery).call{value: 1 ether}("");
+        vm.expectRevert(WrongLotteryEntry);
 
-        // Check if the call was unsuccessful, which means the receive function reverted
-        require(!success, "receive() should revert");
+        address(pureLottery).call{value: 1 ether}("sdasdasd");
 
-        // Assuming getParticipantBalance is a function that returns the balance of a participant
-        // Verify that the sender's balance in the lottery contract is still 0
         assertEq(pureLottery.getParticipantBalance(msg.sender), 0);
     }
 
