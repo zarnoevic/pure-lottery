@@ -3,14 +3,12 @@ pragma solidity 0.8.24;
 
 contract PureLottery {
     error WrongStakeAmount();
-    error LotteryNotActive();
     error LotteryActive();
     error CannotResolveLottery();
     error WrongState();
     error ValueAlreadyCommitted();
     error WrongCommitValue();
     error ValueNotCommitted();
-    error WrongLotteryEntry();
 
     uint256 public constant DURATION = 7 * 24 hours;
     uint256 public constant MIN_TOTAL_POOL = 1 ether;
@@ -36,8 +34,19 @@ contract PureLottery {
     event LotteryStarted(uint32 indexed lotteryId, uint256 startTime);
 
     constructor() {
-        startTimes[0] = block.timestamp;
+        lotteryId = 1;
+        startTimes[lotteryId] = block.timestamp;
     }
+
+    function getLotteryId() external view returns (uint32) {
+        return lotteryId;
+    }
+
+    function getStartTime() external view returns (uint256) {
+        return startTimes[lotteryId];
+    }
+
+    error WrongLotteryEntry();
 
     receive() external payable {
         revert WrongLotteryEntry();
@@ -47,16 +56,22 @@ contract PureLottery {
         revert WrongLotteryEntry();
     }
 
+    error LotteryNotActive();
+
     function enterLottery() external payable {
         if (inResolution) {
             revert LotteryNotActive();
         }
         if (participantAddressToId[msg.sender] == 0) {
-            participantAddressToId[msg.sender] = participantsCount[lotteryId];
             ++participantsCount[lotteryId];
+            participantAddressToId[msg.sender] = participantsCount[lotteryId];
         }
         participantAmounts[lotteryId][msg.sender] += msg.value;
         emit PaymentAccepted(msg.sender, msg.value);
+    }
+
+    function getParticipantsCount() external view returns (uint256) {
+        return participantsCount[lotteryId];
     }
 
     function getParticipantBalance(address participantAddress) external view returns (uint256) {
