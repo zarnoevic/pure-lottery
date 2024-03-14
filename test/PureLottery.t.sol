@@ -12,12 +12,12 @@ contract PureLotteryTest is Test {
         assertEq(pureLottery.getStartTime(), block.timestamp);
     }
 
-    bytes private WrongLotteryEntry = abi.encodeWithSignature("WrongLotteryEntry()");
+    bytes private WrongLotteryEntryError = abi.encodeWithSignature("WrongLotteryEntry()");
 
     function test_receiveReverts() public {
         PureLottery pureLottery = new PureLottery();
 
-        vm.expectRevert(WrongLotteryEntry);
+        vm.expectRevert(WrongLotteryEntryError);
 
         payable(pureLottery).call{value: 1 ether}("");
 
@@ -34,10 +34,13 @@ contract PureLotteryTest is Test {
         assertEq(pureLottery.getParticipantBalance(msg.sender), 0);
     }
 
+    bytes private PaymentAcceptedEvent = abi.encodeWithSignature("PaymentAccepted()");
+
     function test_enterLottery() public {
         PureLottery pureLottery = new PureLottery();
+//        vm.expectEmit(PaymentAcceptedEvent);
         pureLottery.enterLottery{value: 1 ether}();
-        assertEq(pureLottery.getParticipantBalance(msg.sender), 1 ether);
+        assertEq(pureLottery.getParticipantBalance(), 1 ether);
     }
 
 }

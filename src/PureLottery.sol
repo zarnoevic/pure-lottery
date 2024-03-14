@@ -62,10 +62,13 @@ contract PureLottery {
         if (inResolution) {
             revert LotteryNotActive();
         }
+
+        // Assign participant id if not already assigned
         if (participantAddressToId[msg.sender] == 0) {
             ++participantsCount[lotteryId];
             participantAddressToId[msg.sender] = participantsCount[lotteryId];
         }
+
         participantAmounts[lotteryId][msg.sender] += msg.value;
         emit PaymentAccepted(msg.sender, msg.value);
     }
@@ -74,8 +77,8 @@ contract PureLottery {
         return participantsCount[lotteryId];
     }
 
-    function getParticipantBalance(address participantAddress) external view returns (uint256) {
-        return participantAmounts[lotteryId][participantAddress];
+    function getParticipantBalance() external view returns (uint256) {
+        return participantAmounts[lotteryId][msg.sender];
     }
 
     function getPoolBalance() external view returns (uint256) {
