@@ -38,10 +38,25 @@ contract PureLotteryTest is Test {
 
     function test_enterLottery() public {
         PureLottery pureLottery = new PureLottery();
+
         vm.expectEmit(true, true, true, true);
         emit PaymentAccepted(address(this), 1 ether);
         pureLottery.enterLottery{value: 1 ether}();
         assertEq(pureLottery.getParticipantBalance(), 1 ether);
+    }
+
+    function test_enterLottery_TwoTimes() public {
+        PureLottery pureLottery = new PureLottery();
+
+        vm.expectEmit(true, true, true, true);
+        emit PaymentAccepted(address(this), 1 ether);
+        pureLottery.enterLottery{value: 1 ether}();
+        assertEq(pureLottery.getParticipantBalance(), 1 ether);
+
+        vm.expectEmit(true, true, true, true);
+        emit PaymentAccepted(address(this), 2 ether);
+        pureLottery.enterLottery{value: 2 ether}();
+        assertEq(pureLottery.getParticipantBalance(), 3 ether);
     }
 
 }
