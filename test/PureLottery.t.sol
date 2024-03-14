@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {Test, console2} from "forge-std/Test.sol";
-import {PureLottery} from "../src/PureLottery.sol";
+import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
-//import {DSTest} from "forge-std/test.sol";
+
+import {PureLottery} from "../src/PureLottery.sol";
 
 contract PureLotteryTest is Test {
-//    Vm public vm = Vm(HEVM_ADDRESS);
 
     function test_constructorValues() public {
         PureLottery pureLottery = new PureLottery();
@@ -27,7 +26,7 @@ contract PureLotteryTest is Test {
 
         vm.expectRevert(WrongLotteryEntry);
 
-        payable(pureLottery).call{value: 1 ether}("");
+        (bool success,) = payable(pureLottery).call{value: 1 ether}("");
 
         assertEq(pureLottery.getParticipantBalance(), 0);
         assertEq(pureLottery.getPoolBalance(), 0);
@@ -39,7 +38,7 @@ contract PureLotteryTest is Test {
 
         vm.expectRevert(WrongLotteryEntry);
 
-        payable(pureLottery).call{value: 1 ether}("random");
+        (bool success,) = payable(pureLottery).call{value: 1 ether}("random");
 
         assertEq(pureLottery.getParticipantBalance(), 0);
         assertEq(pureLottery.getPoolBalance(), 0);
@@ -95,21 +94,24 @@ contract PureLotteryTest is Test {
         assertEq(pureLottery.getParticipantsCount(), 1);
         assertEq(pureLottery.getPoolBalance(), 6 ether);
 
-        vm.prank(0x12345);
+        address otherAddress = address(0x12345);
+        vm.startPrank(otherAddress, otherAddress);
 
         vm.expectEmit(true, true, true, true);
-        emit PaymentAccepted(address(this), 14 ether);
+        emit PaymentAccepted(otherAddress, 14 ether);
         pureLottery.enterLottery{value: 14 ether}();
         assertEq(pureLottery.getParticipantBalance(), 14 ether);
         assertEq(pureLottery.getParticipantsCount(), 2);
         assertEq(pureLottery.getPoolBalance(), 20 ether);
 
         vm.expectEmit(true, true, true, true);
-        emit PaymentAccepted(address(this), 10 ether);
+        emit PaymentAccepted(otherAddress, 10 ether);
         pureLottery.enterLottery{value: 10 ether}();
-        assertEq(pureLottery.getParticipantBalance(), 10 ether);
+        assertEq(pureLottery.getParticipantBalance(), 24 ether);
         assertEq(pureLottery.getParticipantsCount(), 2);
         assertEq(pureLottery.getPoolBalance(), 30 ether);
+
+        vm.stopPrank();
     }
 
 }
