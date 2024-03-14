@@ -12,7 +12,7 @@ contract PureLottery {
     error WrongCommitValue();
     error ValueNotCommitted();
 
-    uint256 public constant DURATION = 7 * 24 hours;
+    uint256 public constant DURATION = 24 hours;
     uint256 public constant MIN_TOTAL_POOL = 1 ether;
     uint256 public constant COMMITTER_STAKE = 0.1 ether;
     uint256 public constant COMMITTER_BLOCKS_WINDOW = 10;
@@ -37,10 +37,6 @@ contract PureLottery {
     constructor() {
         lotteryId = 1;
         startTimes[lotteryId] = block.timestamp;
-    }
-
-    function getLotteryId() external view returns (uint32) {
-        return lotteryId;
     }
 
     function getStartTime() external view returns (uint256) {
@@ -106,6 +102,14 @@ contract PureLottery {
         inResolution = true;
         resolutionBlockNumbers[lotteryId] = block.number + 1;
         committedValues[lotteryId] = value;
+    }
+
+    function getCommittedValue() external view returns (uint256) {
+        return committedValues[lotteryId];
+    }
+
+    function getResolutionBlockNumber() external view returns (uint256) {
+        return resolutionBlockNumbers[lotteryId];
     }
 
     function recommitValueAndRestartResolution(uint256 value) external payable {

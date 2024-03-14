@@ -11,7 +11,7 @@ contract PureLotteryTest is Test {
     function test_constructorValues() public {
         PureLottery pureLottery = new PureLottery();
 
-        assertEq(pureLottery.getLotteryId(), 1);
+        assertEq(pureLottery.lotteryId(), 1);
         assertEq(pureLottery.getStartTime(), block.timestamp);
 
         assertEq(pureLottery.getParticipantBalance(), 0);
@@ -28,6 +28,7 @@ contract PureLotteryTest is Test {
 
         (bool success,) = payable(pureLottery).call{value: 1 ether}("");
 
+        assertEq(success, true);
         assertEq(pureLottery.getParticipantBalance(), 0);
         assertEq(pureLottery.getPoolBalance(), 0);
         assertEq(pureLottery.getParticipantsCount(), 0);
@@ -40,6 +41,7 @@ contract PureLotteryTest is Test {
 
         (bool success,) = payable(pureLottery).call{value: 1 ether}("random");
 
+        assertEq(success, true);
         assertEq(pureLottery.getParticipantBalance(), 0);
         assertEq(pureLottery.getPoolBalance(), 0);
         assertEq(pureLottery.getParticipantsCount(), 0);
@@ -114,5 +116,68 @@ contract PureLotteryTest is Test {
 
         vm.stopPrank();
     }
+
+    bytes private WrongStakeAmount = abi.encodeWithSignature("WrongStakeAmount()");
+    bytes private ValueAlreadyCommitted = abi.encodeWithSignature("ValueAlreadyCommitted()");
+    bytes private WrongCommitValue = abi.encodeWithSignature("WrongCommitValue()");
+
+    function test_commitValueAndStartResolutionReverts() public {
+        PureLottery pureLottery = new PureLottery();
+
+        uint256 preimage = 1234567890;
+        uint256 value = uint256(keccak256(abi.encodePacked(preimage)));
+
+        vm.expectRevert(WrongStakeAmount);
+        pureLottery.commitValueAndStartResolution{value: 0.11 ether}(value);
+
+        vm.expectRevert(WrongCommitValue);
+        pureLottery.commitValueAndStartResolution{value: 0.1 ether}(0);
+    }
+
+    function test_commitValueAndStartResolutionAccepts() public {
+        uint startTime = 1640995200;
+        vm.warp(startTime);
+        PureLottery pureLottery = new PureLottery();
+
+        vm.expectEmit(true, true, true, true);
+        emit PaymentAccepted(address(this), 5 ether);
+        pureLottery.enterLottery{value: 5 ether}();
+        assertEq(pureLottery.getParticipantBalance(), 5 ether);
+        assertEq(pureLottery.getParticipantsCount(), 1);
+        assertEq(pureLottery.getPoolBalance(), 5 ether);
+
+        address otherAddress = address(0x1111111234567);
+        vm.startPrank(otherAddress, otherAddress);
+        vm.deal(otherAddress, 1000 ether);
+
+        vm.expectEmit(true, true, true, true);
+        emit PaymentAccepted(otherAddress, 10 ether);
+        pureLottery.enterLottery{value: 10 ether}();
+        assertEq(pureLottery.getParticipantBalance(), 10 ether);
+        assertEq(pureLottery.getParticipantsCount(), 2);
+        assertEq(pureLottery.getPoolBalance(), 15 ether);
+
+        vm.stopPrank();
+
+        address committerAddress = address(0xaaaaa1);
+        vm.startPrank(committerAddress, committerAddress);
+        vm.deal(committerAddress, 1 ether);
+
+        vm.warp(startTime + pureLottery.DURATION() + 10);
+
+        uint256 preimage = 1234567890;
+        uint256 value = uint256(keccak256(abi.encodePacked(preimage)));
+
+        pureLottery.commitValueAndStartResolution{value: 0.1 ether}(value);
+
+        assertEq(pureLottery.inResolution(), true);
+        assertEq(pureLottery.getCommittedValue(), value);
+        assertEq(pureLottery.getResolutionBlockNumber(), 2);
+
+        vm.stopPrank();
+    }
+
+//        vm.roll(pureLottery.COMMITTER_BLOCKS_WINDOW() / 2);
+
 
 }
