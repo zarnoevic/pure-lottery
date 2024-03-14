@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import "forge-std/console.sol";
+
 contract PureLottery {
     error WrongStakeAmount();
     error LotteryActive();
@@ -56,20 +58,24 @@ contract PureLottery {
     }
 
     error LotteryNotActive();
+
     event PaymentAccepted(address indexed participant, uint256 amount);
 
     function enterLottery() external payable {
         if (inResolution) {
             revert LotteryNotActive();
         }
+        console.log("enterLottery", msg.sender, msg.value);
 
         // Assign participant id if not already assigned
         if (participantAddressToId[msg.sender] == 0) {
             ++participantsCount[lotteryId];
             participantAddressToId[msg.sender] = participantsCount[lotteryId];
         }
+        console.log("participantsCount[lotteryId]", participantsCount[lotteryId]);
 
         participantAmounts[lotteryId][msg.sender] += msg.value;
+        console.log("end");
         emit PaymentAccepted(msg.sender, msg.value);
     }
 
@@ -113,9 +119,9 @@ contract PureLottery {
             revert LotteryActive();
         } else if (
             !(
-                block.number > resolutionBlockNumbers[lotteryId] + 256
-                    || block.number >= resolutionBlockNumbers[lotteryId] + COMMITTER_BLOCKS_WINDOW
-            )
+            block.number > resolutionBlockNumbers[lotteryId] + 256
+            || block.number >= resolutionBlockNumbers[lotteryId] + COMMITTER_BLOCKS_WINDOW
+        )
         ) {
             revert ValueAlreadyCommitted();
         }

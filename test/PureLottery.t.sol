@@ -94,8 +94,9 @@ contract PureLotteryTest is Test {
         assertEq(pureLottery.getParticipantsCount(), 1);
         assertEq(pureLottery.getPoolBalance(), 6 ether);
 
-        address otherAddress = address(0x12345);
+        address otherAddress = address(0x1111111234567);
         vm.startPrank(otherAddress, otherAddress);
+        vm.deal(otherAddress, 1000 ether);
 
         vm.expectEmit(true, true, true, true);
         emit PaymentAccepted(otherAddress, 14 ether);
