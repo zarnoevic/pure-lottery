@@ -28,7 +28,6 @@ contract PureLottery {
     mapping(uint32 => uint256) public committedValues;
     mapping(uint32 => uint256) public resolutionBlockNumbers;
 
-    event PaymentAccepted(address indexed participant, uint256 amount);
     event ResolutionStarted(uint32 indexed lotteryId, uint256 startBlockNumber);
     event ResolvedLottery(uint32 indexed lotteryId);
     event LotteryStarted(uint32 indexed lotteryId, uint256 startTime);
@@ -57,6 +56,7 @@ contract PureLottery {
     }
 
     error LotteryNotActive();
+    event PaymentAccepted(address indexed participant, uint256 amount);
 
     function enterLottery() external payable {
         if (inResolution) {

@@ -12,16 +12,16 @@ contract PureLotteryTest is Test {
         assertEq(pureLottery.getStartTime(), block.timestamp);
     }
 
-    bytes private WrongLotteryEntryError = abi.encodeWithSignature("WrongLotteryEntry()");
+    bytes private WrongLotteryEntry = abi.encodeWithSignature("WrongLotteryEntry()");
 
     function test_receiveReverts() public {
         PureLottery pureLottery = new PureLottery();
 
-        vm.expectRevert(WrongLotteryEntryError);
+        vm.expectRevert(WrongLotteryEntry);
 
         payable(pureLottery).call{value: 1 ether}("");
 
-        assertEq(pureLottery.getParticipantBalance(msg.sender), 0);
+        assertEq(pureLottery.getParticipantBalance(), 0);
     }
 
     function test_fallbackReverts() public {
@@ -29,16 +29,17 @@ contract PureLotteryTest is Test {
 
         vm.expectRevert(WrongLotteryEntry);
 
-        address(pureLottery).call{value: 1 ether}("sdasdasd");
+        payable(pureLottery).call{value: 1 ether}("random");
 
-        assertEq(pureLottery.getParticipantBalance(msg.sender), 0);
+        assertEq(pureLottery.getParticipantBalance(), 0);
     }
 
-    bytes private PaymentAcceptedEvent = abi.encodeWithSignature("PaymentAccepted()");
+    event PaymentAccepted(address indexed participant, uint256 amount);
 
     function test_enterLottery() public {
         PureLottery pureLottery = new PureLottery();
-//        vm.expectEmit(PaymentAcceptedEvent);
+        vm.expectEmit(true, true, true, true);
+        emit PaymentAccepted(address(this), 1 ether);
         pureLottery.enterLottery{value: 1 ether}();
         assertEq(pureLottery.getParticipantBalance(), 1 ether);
     }
