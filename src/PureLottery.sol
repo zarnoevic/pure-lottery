@@ -71,7 +71,10 @@ contract PureLottery {
         console.log("participantsCount[lotteryId]", participantsCount[lotteryId]);
 
         participantAmounts[lotteryId][msg.sender] += msg.value;
-        console.log("end");
+
+        // Keep track of original pool balance as it will diverge from address(this).balance
+        // due to the committer stake payout and confiscation of the stake in case of a failed resolution
+        poolBalances[lotteryId] += msg.value;
         emit PaymentAccepted(msg.sender, msg.value);
     }
 
@@ -84,7 +87,7 @@ contract PureLottery {
     }
 
     function getPoolBalance() external view returns (uint256) {
-        return address(this).balance;
+        return poolBalances[lotteryId];
     }
 
     function commitValueAndStartResolution(uint256 value) external payable {
@@ -150,9 +153,9 @@ contract PureLottery {
         uint256 monteCarloDot = uint256(
             keccak256(abi.encodePacked(preimage, blockhash(resolutionBlockNumbers[lotteryId])))
         ) % poolBalances[lotteryId];
-
         uint256 monteCarloLine = 0;
         for (uint32 i = 0; i < participantsCount[lotteryId]; ++i) {
+            console.log("i", i);
             if (monteCarloDot <= monteCarloLine) {
 //                winnerAmounts[i][msg.sender] = participantAmounts[lotteryId][i];
 //                poolBalances[lotteryId] -= participantAmounts[lotteryId][i];

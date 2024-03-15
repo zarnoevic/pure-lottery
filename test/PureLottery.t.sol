@@ -134,6 +134,8 @@ contract PureLotteryTest is Test {
         pureLottery.commitValueAndStartResolution{value: 0.1 ether}(0);
     }
 
+    bytes private LotteryNotActive = abi.encodeWithSignature("LotteryNotActive()");
+
     function test_commitValueAndStartResolutionAccepts() public {
         uint startTime = 1640995200;
         vm.warp(startTime);
@@ -177,7 +179,60 @@ contract PureLotteryTest is Test {
         vm.stopPrank();
     }
 
-//        vm.roll(pureLottery.COMMITTER_BLOCKS_WINDOW() / 2);
+    function test_revealValueAndResolveLottery() public {
+        uint startTime = 1640995200;
+        vm.warp(startTime);
+        PureLottery pureLottery = new PureLottery();
+
+        vm.expectEmit(true, true, true, true);
+        emit PaymentAccepted(address(this), 5 ether);
+        pureLottery.enterLottery{value: 5 ether}();
+        assertEq(pureLottery.getParticipantBalance(), 5 ether);
+        assertEq(pureLottery.getParticipantsCount(), 1);
+        assertEq(pureLottery.getPoolBalance(), 5 ether);
+
+        address otherAddress = address(0x1111111234567);
+        vm.startPrank(otherAddress, otherAddress);
+        vm.deal(otherAddress, 1000 ether);
+
+        vm.expectEmit(true, true, true, true);
+        emit PaymentAccepted(otherAddress, 10 ether);
+        pureLottery.enterLottery{value: 10 ether}();
+        assertEq(pureLottery.getParticipantBalance(), 10 ether);
+        assertEq(pureLottery.getParticipantsCount(), 2);
+        assertEq(pureLottery.getPoolBalance(), 15 ether);
+
+        vm.stopPrank();
+
+        address committerAddress = address(0xaaaaa1);
+        vm.startPrank(committerAddress, committerAddress);
+        vm.deal(committerAddress, 1 ether);
+
+        vm.warp(startTime + pureLottery.DURATION() + 10);
+
+        uint256 preimage = 1234567890;
+        uint256 value = uint256(keccak256(abi.encodePacked(preimage)));
+
+        pureLottery.commitValueAndStartResolution{value: 0.1 ether}(value);
+
+        assertEq(pureLottery.inResolution(), true);
+        assertEq(pureLottery.getCommittedValue(), value);
+        assertEq(pureLottery.getResolutionBlockNumber(), 2);
+
+        vm.roll(pureLottery.COMMITTER_BLOCKS_WINDOW() - 2);
+
+        uint balance = address(committerAddress).balance;
+        uint32 lotteryId = pureLottery.lotteryId();
+
+        pureLottery.revealValueAndResolveLottery(preimage);
+
+        assertEq(pureLottery.inResolution(), false);
+        assertEq(pureLottery.lotteryId(), lotteryId + 1);
+        assertGt(address(committerAddress).balance, balance);
+
+        vm.stopPrank();
+
+    }
 
 
 }
