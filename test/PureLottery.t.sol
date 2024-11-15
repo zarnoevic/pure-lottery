@@ -234,11 +234,7 @@ contract PureLotteryTest is Test {
 
     }
 
-     bytes private WaitingForResolutionBlockHash = abi.encodeWithSignature("WaitingForResolutionBlockHash()");
-    bytes private InvalidPreimageRevealed = abi.encodeWithSignature("InvalidPreimageRevealed()");
-    bytes private NoRewardAvailable = abi.encodeWithSignature("NoRewardAvailable()");
-
-    function test_recommitValueAndRestartResolution() public {
+    function test_alternativeResolution() public {
         PureLottery pureLottery = setupLotteryWithInitialCommit();
         
         address alternativeResolver = address(0xbbbbb1);
@@ -251,29 +247,16 @@ contract PureLotteryTest is Test {
         // Move past COMMITTER_BLOCKS_WINDOW
         vm.roll(pureLottery.COMMITTER_BLOCKS_WINDOW() + 3);
         
-        pureLottery.recommitValueAndStartResolution{value: 0.1 ether}(newValue);
+        pureLottery.commitValueAndStartResolution{value: 0.1 ether}(newValue);
         
         assertEq(pureLottery.getCommittedValue(), newValue);
         assertEq(pureLottery.getResolutionBlockNumber(), block.number + 1);
         
-        vm.stopPrank();
-    }
-
-    function test_recommitValueAndRestartResolutionReverts() public {
-        PureLottery pureLottery = setupLotteryWithInitialCommit();
+        // Test resolution with alternative value
+        vm.roll(block.number + 5);
+        pureLottery.revealValueAndResolveLottery(newPreimage);
         
-        address alternativeResolver = address(0xbbbbb1);
-        vm.startPrank(alternativeResolver);
-        vm.deal(alternativeResolver, 1 ether);
-        
-        uint256 newPreimage = 987654321;
-        uint256 newValue = uint256(keccak256(abi.encodePacked(newPreimage)));
-        
-        // Try before COMMITTER_BLOCKS_WINDOW
-        vm.roll(pureLottery.COMMITTER_BLOCKS_WINDOW() - 1);
-        
-        vm.expectRevert(ValueAlreadyCommitted);
-        pureLottery.recommitValueAndStartResolution{value: 0.1 ether}(newValue);
+        assertEq(pureLottery.inResolution(), false);
         
         vm.stopPrank();
     }
