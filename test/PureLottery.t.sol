@@ -7,6 +7,9 @@ import "forge-std/Vm.sol";
 import {PureLottery} from "../src/PureLottery.sol";
 
 contract PureLotteryTest is Test {
+    bytes private ValueAlreadyCommitted = abi.encodeWithSignature("ValueAlreadyCommitted()");
+    bytes private LotteryActive = abi.encodeWithSignature("LotteryActive()");
+    bytes private WrongState = abi.encodeWithSignature("WrongState()");
     bytes private WrongStakeAmount = abi.encodeWithSignature("WrongStakeAmount()");
     bytes private WrongCommitValue = abi.encodeWithSignature("WrongCommitValue()");
     bytes private LotteryNotActive = abi.encodeWithSignature("LotteryNotActive()");
@@ -326,6 +329,128 @@ contract PureLotteryTest is Test {
         
         vm.stopPrank();
         return pureLottery;
+    }
+
+    function test_enterLotteryDuringResolution() public {
+        PureLottery pureLottery = setupLotteryWithInitialCommit();
+        
+        vm.expectRevert(LotteryNotActive);
+        pureLottery.enterLottery{value: 1 ether}();
+    }
+    
+    function test_commitValueBeforeDuration() public {
+        PureLottery pureLottery = new PureLottery();
+        
+        uint256 preimage = 1234567890;
+        uint256 value = uint256(keccak256(abi.encodePacked(preimage)));
+        
+        vm.expectRevert(WrongState);
+        pureLottery.commitValueAndStartResolution{value: 0.1 ether}(value);
+    }
+    
+    function test_doubleCommit() public {
+        PureLottery pureLottery = setupLotteryWithInitialCommit();
+        
+        uint256 preimage = 9999;
+        uint256 value = uint256(keccak256(abi.encodePacked(preimage)));
+        
+        vm.expectRevert(ValueAlreadyCommitted);
+        pureLottery.commitValueAndStartResolution{value: 0.1 ether}(value);
+    }
+    
+    function test_recommitValueAndRestartResolution() public {
+        PureLottery pureLottery = setupLotteryWithInitialCommit();
+        
+        // Roll past COMMITTER_BLOCKS_WINDOW
+        vm.roll(block.number + pureLottery.COMMITTER_BLOCKS_WINDOW() + 1);
+        
+        address newResolver = address(0xbbbbb1);
+        vm.startPrank(newResolver);
+        vm.deal(newResolver, 1 ether);
+        
+        uint256 newPreimage = 9999;
+        uint256 newValue = uint256(keccak256(abi.encodePacked(newPreimage)));
+        pureLottery.recommitValueAndStartResolution{value: 0.1 ether}(newValue);
+        
+        assertEq(pureLottery.getCommittedValue(), newValue);
+        assertEq(pureLottery.getResolutionBlockNumber(), block.number + 1);
+        
+        vm.stopPrank();
+    }
+    
+    function test_withdrawReward() public {
+        PureLottery pureLottery = setupAndResolveLottery();
+        
+        address participant = address(0x1111111234567);
+        uint256 initialBalance = participant.balance;
+        uint256 expectedReward = pureLottery.getPoolBalance();
+        
+        vm.startPrank(participant);
+        pureLottery.withdrawReward();
+        
+        assertEq(participant.balance - initialBalance, expectedReward);
+        assertEq(pureLottery.winnerAmounts(pureLottery.lotteryId() - 1, participant), 0);
+        
+        vm.expectRevert(NoRewardAvailable);
+        pureLottery.withdrawReward();
+        
+        vm.stopPrank();
+    }
+    
+    function test_recommitValueAndRestartResolutionReverts() public {
+        PureLottery pureLottery = new PureLottery();
+        
+        vm.expectRevert(ValueNotCommitted);
+        pureLottery.recommitValueAndStartResolution{value: 0.1 ether}(123);
+        
+        pureLottery = setupLotteryWithInitialCommit();
+        
+        vm.expectRevert(ValueAlreadyCommitted);
+        pureLottery.recommitValueAndStartResolution{value: 0.1 ether}(123);
+        
+        vm.warp(block.timestamp + 1 days);
+        vm.expectRevert(WrongStakeAmount);
+        pureLottery.recommitValueAndStartResolution{value: 0.05 ether}(123);
+        
+        vm.expectRevert(WrongCommitValue);
+        pureLottery.recommitValueAndStartResolution{value: 0.1 ether}(0);
+    }
+    
+    function test_multipleParticipantsWithdraw() public {
+        PureLottery pureLottery = new PureLottery();
+        
+        // Setup multiple participants
+        address[] memory participants = new address[](3);
+        for(uint i = 0; i < 3; i++) {
+            participants[i] = address(uint160(i + 1));
+            vm.deal(participants[i], 10 ether);
+            vm.prank(participants[i]);
+            pureLottery.enterLottery{value: 1 ether}();
+        }
+        
+        // Resolve lottery
+        vm.warp(block.timestamp + pureLottery.DURATION() + 1);
+        address resolver = address(0xaaaaa1);
+        vm.startPrank(resolver);
+        vm.deal(resolver, 1 ether);
+        
+        uint256 preimage = 1234567890;
+        uint256 value = uint256(keccak256(abi.encodePacked(preimage)));
+        pureLottery.commitValueAndStartResolution{value: 0.1 ether}(value);
+        
+        vm.roll(block.number + 5);
+        pureLottery.revealValueAndResolveLottery(preimage);
+        vm.stopPrank();
+        
+        // Check withdrawals
+        for(uint i = 0; i < 3; i++) {
+            if(pureLottery.winnerAmounts(pureLottery.lotteryId() - 1, participants[i]) > 0) {
+                uint256 initialBalance = participants[i].balance;
+                vm.prank(participants[i]);
+                pureLottery.withdrawReward();
+                assertGt(participants[i].balance, initialBalance);
+            }
+        }
     }
 
 
