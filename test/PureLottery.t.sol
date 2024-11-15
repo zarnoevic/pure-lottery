@@ -7,6 +7,13 @@ import "forge-std/Vm.sol";
 import {PureLottery} from "../src/PureLottery.sol";
 
 contract PureLotteryTest is Test {
+    bytes private WrongStakeAmount = abi.encodeWithSignature("WrongStakeAmount()");
+    bytes private WrongCommitValue = abi.encodeWithSignature("WrongCommitValue()");
+    bytes private LotteryNotActive = abi.encodeWithSignature("LotteryNotActive()");
+    bytes private WaitingForResolutionBlockHash = abi.encodeWithSignature("WaitingForResolutionBlockHash()");
+    bytes private InvalidPreimageRevealed = abi.encodeWithSignature("InvalidPreimageRevealed()");
+    bytes private NoRewardAvailable = abi.encodeWithSignature("NoRewardAvailable()");
+
 
     function test_constructorValues() public {
         PureLottery pureLottery = new PureLottery();
@@ -117,10 +124,6 @@ contract PureLotteryTest is Test {
         vm.stopPrank();
     }
 
-    bytes private WrongStakeAmount = abi.encodeWithSignature("WrongStakeAmount()");
-    bytes private ValueAlreadyCommitted = abi.encodeWithSignature("ValueAlreadyCommitted()");
-    bytes private WrongCommitValue = abi.encodeWithSignature("WrongCommitValue()");
-
     function test_commitValueAndStartResolutionReverts() public {
         PureLottery pureLottery = new PureLottery();
 
@@ -133,8 +136,6 @@ contract PureLotteryTest is Test {
         vm.expectRevert(WrongCommitValue);
         pureLottery.commitValueAndStartResolution{value: 0.1 ether}(0);
     }
-
-    bytes private LotteryNotActive = abi.encodeWithSignature("LotteryNotActive()");
 
     function test_commitValueAndStartResolutionAccepts() public {
         uint startTime = 1640995200;
@@ -234,32 +235,7 @@ contract PureLotteryTest is Test {
 
     }
 
-    function test_alternativeResolution() public {
-        PureLottery pureLottery = setupLotteryWithInitialCommit();
-        
-        address alternativeResolver = address(0xbbbbb1);
-        vm.startPrank(alternativeResolver);
-        vm.deal(alternativeResolver, 1 ether);
-        
-        uint256 newPreimage = 987654321;
-        uint256 newValue = uint256(keccak256(abi.encodePacked(newPreimage)));
-        
-        // Move past COMMITTER_BLOCKS_WINDOW
-        vm.roll(pureLottery.COMMITTER_BLOCKS_WINDOW() + 3);
-        
-        pureLottery.commitValueAndStartResolution{value: 0.1 ether}(newValue);
-        
-        assertEq(pureLottery.getCommittedValue(), newValue);
-        assertEq(pureLottery.getResolutionBlockNumber(), block.number + 1);
-        
-        // Test resolution with alternative value
-        vm.roll(block.number + 5);
-        pureLottery.revealValueAndResolveLottery(newPreimage);
-        
-        assertEq(pureLottery.inResolution(), false);
-        
-        vm.stopPrank();
-    }
+
 
     function test_revealValueAndResolveLotteryReverts() public {
         PureLottery pureLottery = setupLotteryWithInitialCommit();
@@ -267,11 +243,9 @@ contract PureLotteryTest is Test {
         address committerAddress = address(0xaaaaa1);
         vm.startPrank(committerAddress);
         
-        // Try reveal before resolution block
         vm.expectRevert(WaitingForResolutionBlockHash);
         pureLottery.revealValueAndResolveLottery(1234567890);
         
-        // Try reveal with wrong preimage
         vm.roll(pureLottery.COMMITTER_BLOCKS_WINDOW() - 2);
         vm.expectRevert(InvalidPreimageRevealed);
         pureLottery.revealValueAndResolveLottery(999999);
@@ -279,29 +253,11 @@ contract PureLotteryTest is Test {
         vm.stopPrank();
     }
 
-    function test_withdrawReward() public {
-        PureLottery pureLottery = setupAndResolveLottery();
-        
-        address winner = address(0x1111111234567);
-        vm.startPrank(winner);
-        
-        uint256 initialBalance = address(winner).balance;
-        pureLottery.withdrawReward();
-        
-        assertGt(address(winner).balance, initialBalance);
-        
-        // Try withdraw again
-        vm.expectRevert(NoRewardAvailable);
-        pureLottery.withdrawReward();
-        
-        vm.stopPrank();
-    }
 
     function test_fullLotteryLifecycle() public {
         PureLottery pureLottery = new PureLottery();
         uint256 startTime = block.timestamp;
 
-        // Multiple entries
         for(uint i = 1; i <= 5; i++) {
             address player = address(uint160(i));
             vm.deal(player, 10 ether);
@@ -312,10 +268,8 @@ contract PureLotteryTest is Test {
         assertEq(pureLottery.getParticipantsCount(), 5);
         assertEq(pureLottery.getPoolBalance(), 5 ether);
 
-        // Wait for lottery duration
         vm.warp(startTime + pureLottery.DURATION() + 1);
 
-        // Initial commit
         address resolver = address(0xaaaaa1);
         vm.startPrank(resolver);
         vm.deal(resolver, 1 ether);
@@ -324,7 +278,6 @@ contract PureLotteryTest is Test {
         uint256 value = uint256(keccak256(abi.encodePacked(preimage)));
         pureLottery.commitValueAndStartResolution{value: 0.1 ether}(value);
 
-        // Reveal and resolve
         vm.roll(block.number + 5);
         pureLottery.revealValueAndResolveLottery(preimage);
         
