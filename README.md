@@ -146,13 +146,3 @@ ts-node resolver-bot.ts
 ```
 
 The bot will watch for resolution opportunities and automatically participate when profitable.
-
-## Future Improvements
-
-Some ideas we're exploring:
-- Multi-token support
-- Variable durations
-- Automated prize pools
-- Layer 2 deployment for lower gas costs
-
-Feel free to experiment with the code and build your own resolver strategies!
