@@ -11,6 +11,7 @@ contract PureLottery {
     error ValueAlreadyCommitted();
     error WrongCommitValue();
     error ValueNotCommitted();
+    error NoRewardAvailable();
 
     uint256 public constant DURATION = 24 hours;
     uint256 public constant MIN_TOTAL_POOL = 1 ether;
@@ -33,6 +34,8 @@ contract PureLottery {
     event ResolutionStarted(uint32 indexed lotteryId, uint256 startBlockNumber);
     event ResolvedLottery(uint32 indexed lotteryId);
     event LotteryStarted(uint32 indexed lotteryId, uint256 startTime);
+    event WinnerSelected(uint32 indexed lotteryId, address winner, uint256 amount);
+    event RewardWithdrawn(uint32 indexed lotteryId, address winner, uint256 amount);
 
     constructor() {
         lotteryId = 1;
@@ -63,7 +66,6 @@ contract PureLottery {
         }
         console.log("enterLottery", msg.sender, msg.value);
 
-        // Assign participant id if not already assigned
         if (participantAddressToId[msg.sender] == 0) {
             ++participantsCount[lotteryId];
             participantAddressToId[msg.sender] = participantsCount[lotteryId];
@@ -71,9 +73,6 @@ contract PureLottery {
         console.log("participantsCount[lotteryId]", participantsCount[lotteryId]);
 
         participantAmounts[lotteryId][msg.sender] += msg.value;
-
-        // Keep track of original pool balance as it will diverge from address(this).balance
-        // due to the committer stake payout and confiscation of the stake in case of a failed resolution
         poolBalances[lotteryId] += msg.value;
         emit PaymentAccepted(msg.sender, msg.value);
     }
@@ -136,8 +135,6 @@ contract PureLottery {
         resolutionBlockNumbers[lotteryId] = block.number + 1;
     }
 
-    // Revealing and resolving the lottery
-
     error WaitingForResolutionBlockHash();
     error InvalidPreimageRevealed();
 
@@ -153,13 +150,24 @@ contract PureLottery {
         uint256 monteCarloDot = uint256(
             keccak256(abi.encodePacked(preimage, blockhash(resolutionBlockNumbers[lotteryId])))
         ) % poolBalances[lotteryId];
+        
         uint256 monteCarloLine = 0;
-        for (uint32 i = 0; i < participantsCount[lotteryId]; ++i) {
-            console.log("i", i);
-            if (monteCarloDot <= monteCarloLine) {
-//                winnerAmounts[i][msg.sender] = participantAmounts[lotteryId][i];
-//                poolBalances[lotteryId] -= participantAmounts[lotteryId][i];
-//                participantAmounts[lotteryId][i] = 0;
+        address currentParticipant;
+        
+        // Iterate through participants to find winner
+        for (uint16 i = 1; i <= participantsCount[lotteryId]; i++) {
+            // Find participant address by id
+            for (uint16 j = 1; j <= participantsCount[lotteryId]; j++) {
+                if (participantAddressToId[currentParticipant] == i) {
+                    monteCarloLine += participantAmounts[lotteryId][currentParticipant];
+                    if (monteCarloDot <= monteCarloLine) {
+                        // Winner found
+                        winnerAmounts[lotteryId][currentParticipant] = poolBalances[lotteryId];
+                        emit WinnerSelected(lotteryId, currentParticipant, poolBalances[lotteryId]);
+                        break;
+                    }
+                }
+                currentParticipant = address(uint160(uint256(keccak256(abi.encodePacked(j)))));
             }
         }
 
@@ -172,6 +180,14 @@ contract PureLottery {
         emit LotteryStarted(lotteryId, block.timestamp);
     }
 
-    function withdrawReward() external {}
-
+    function withdrawReward() external {
+        uint256 reward = winnerAmounts[lotteryId - 1][msg.sender];
+        if (reward == 0) {
+            revert NoRewardAvailable();
+        }
+        
+        winnerAmounts[lotteryId - 1][msg.sender] = 0;
+        payable(msg.sender).transfer(reward);
+        emit RewardWithdrawn(lotteryId - 1, msg.sender, reward);
+    }
 }
